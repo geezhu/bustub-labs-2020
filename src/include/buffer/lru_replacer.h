@@ -13,6 +13,7 @@
 #pragma once
 
 #include <list>
+#include <memory>
 #include <mutex>  // NOLINT
 #include <vector>
 
@@ -46,7 +47,13 @@ class LRUReplacer : public Replacer {
   size_t Size() override;
 
  private:
-  // TODO(student): implement me!
+  struct double_linklist{
+    double_linklist* next;
+    double_linklist* prev;
+  }head_;
+  std::unique_ptr<double_linklist[]> empty_list_;
+  size_t npages_;
+  std::mutex latch_;
 };
 
 }  // namespace bustub
