@@ -61,7 +61,6 @@ Page *BufferPoolManager::FetchPageImpl(page_id_t page_id) {
       if (replacer_->Victim(&frameId)) {
         page = &pages_[frameId];
         if (page->is_dirty_) {
-          //          printf("write page %d\n",page->page_id_);
           disk_manager_->WritePage(page->page_id_, page->data_);
         }
         page_table_.erase(page->page_id_);
@@ -177,7 +176,7 @@ bool BufferPoolManager::DeletePageImpl(page_id_t page_id) {
     return false;
   }
   replacer_->Pin(frameId);
-  // pincount==0 no need to lock
+  // when pin count==0 no need to lock
   disk_manager_->DeallocatePage(page->page_id_);
   page_table_.erase(page->page_id_);
   page->pin_count_ = 0;
@@ -189,7 +188,6 @@ bool BufferPoolManager::DeletePageImpl(page_id_t page_id) {
 }
 
 void BufferPoolManager::FlushAllPagesImpl() {
-  // You can do it!
   unique_lock lock(latch_);
   for (size_t i = 0; i < pool_size_; ++i) {
     auto &page = pages_[i];
