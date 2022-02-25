@@ -47,10 +47,10 @@ class LRUReplacer : public Replacer {
   size_t Size() override;
 
  private:
-  struct double_linklist{
-    double_linklist* next;
-    double_linklist* prev;
-  }head_;
+  struct double_linklist {
+    double_linklist *next;
+    double_linklist *prev;
+  } head_{};
   std::unique_ptr<double_linklist[]> empty_list_;
   size_t npages_;
   std::mutex latch_;
