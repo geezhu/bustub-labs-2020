@@ -41,7 +41,7 @@ std::string usageMessage() {
 }
 
 // Remove 'DISABLED_' when you are ready
-TEST(BptTreeTest, DISABLED_UnitTest) {
+TEST(BptTreeTest, UnitTest) {
   int64_t key = 0;
   GenericKey<8> index_key;
   RID rid;
@@ -69,6 +69,7 @@ TEST(BptTreeTest, DISABLED_UnitTest) {
   BPlusTree<GenericKey<8>, RID, GenericComparator<8>> tree("foo_pk", bpm, comparator, leaf_max_size, internal_max_size);
   // create transaction
   Transaction *transaction = new Transaction(0);
+  int count = 0;
   while (!quit) {
     std::cout << "> ";
     std::cin >> instruction;
@@ -99,7 +100,9 @@ TEST(BptTreeTest, DISABLED_UnitTest) {
         tree.Print(bpm);
         break;
       case 'g':
-        std::cin >> filename;
+        //        std::cin >> filename;
+        filename = std::string("tmp") + std::to_string(count) + std::string(".dot");
+        count++;
         tree.Draw(bpm, filename);
         break;
       case '?':
@@ -120,3 +123,7 @@ TEST(BptTreeTest, DISABLED_UnitTest) {
   remove("test.log");
 }
 }  // namespace bustub
+int main(int argc, char **argv) {
+  ::testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
+}
