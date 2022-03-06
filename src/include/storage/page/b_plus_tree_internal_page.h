@@ -56,11 +56,16 @@ class BPlusTreeInternalPage : public BPlusTreePage {
                         BufferPoolManager *buffer_pool_manager);
   void MoveLastToFrontOf(BPlusTreeInternalPage *recipient, const KeyType &middle_key,
                          BufferPoolManager *buffer_pool_manager);
+  int KeyIndex(const KeyType &key, const KeyComparator &comparator) const;
 
  private:
   void CopyNFrom(MappingType *items, int size, BufferPoolManager *buffer_pool_manager);
   void CopyLastFrom(const MappingType &pair, BufferPoolManager *buffer_pool_manager);
   void CopyFirstFrom(const MappingType &pair, BufferPoolManager *buffer_pool_manager);
+  void Copy(int startIndex, MappingType *items, int size);
+  void LeftShift(int index, int size);
+  void RightShift(int index, int size);
+  void ChangeParentId(page_id_t page_id, BufferPoolManager *buffer_pool_manager);
   MappingType array[0];
 };
 }  // namespace bustub
