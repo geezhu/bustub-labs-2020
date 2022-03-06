@@ -11,9 +11,9 @@
 #pragma once
 
 #include <queue>
+#include <shared_mutex>
 #include <string>
 #include <vector>
-
 #include "concurrency/transaction.h"
 #include "storage/index/index_iterator.h"
 #include "storage/page/b_plus_tree_internal_page.h"
@@ -33,6 +33,7 @@ namespace bustub {
  * (3) The structure should shrink and grow dynamically
  * (4) Implement index iterator for range scan
  */
+enum class BPlusTreeOperation { SEARCH, INSERT, DELETE, NONE };
 INDEX_TEMPLATE_ARGUMENTS
 class BPlusTree {
   using InternalPage = BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator>;
@@ -69,6 +70,23 @@ class BPlusTree {
     ToGraph(reinterpret_cast<BPlusTreePage *>(bpm->FetchPage(root_page_id_)->GetData()), bpm, out);
     out << "}" << std::endl;
     out.close();
+    std::ifstream ifile(outf);
+    std::ostringstream buf;
+    buf << "echo \'";
+    char ch;
+    while (buf && ifile.get(ch)) {
+      buf.put(ch);
+    }
+    buf << "\' | dot -Tsvg > ";
+    std::ostringstream filename;
+    filename << outf.substr(0, outf.find('.')) << ".svg";
+    buf << filename.str();
+    system(buf.str().c_str());
+    buf.str("");
+    buf << "google-chrome ";
+    buf << filename.str();
+    buf << "> /dev/null 2>&1 &";
+    system(buf.str().c_str());
   }
 
   // read data from file and insert one by one
@@ -78,8 +96,16 @@ class BPlusTree {
   void RemoveFromFile(const std::string &file_name, Transaction *transaction = nullptr);
   // expose for test purpose
   Page *FindLeafPage(const KeyType &key, bool leftMost = false);
+  Page *FindLeafPageImpl(const KeyType &key, BPlusTreeOperation type = BPlusTreeOperation::NONE,
+                         Transaction *transaction = nullptr, bool leftMost = false);
+  page_ptr<LeafPage> FindLeafPage(const KeyType &key, BPlusTreeOperation type, Transaction *transaction,
+                                  bool leftMost = false);
 
  private:
+  template <typename targetPage>
+  page_ptr<targetPage> FetchPage(Transaction *transaction, page_id_t page_id, BPlusTreeOperation type);
+  void ClearPage(Transaction *transaction, BPlusTreeOperation type);
+  bool HoldingRootPage(BPlusTreePage *leaf, Transaction *transaction);
   void StartNewTree(const KeyType &key, const ValueType &value);
 
   bool InsertIntoLeaf(const KeyType &key, const ValueType &value, Transaction *transaction = nullptr);
@@ -116,6 +142,9 @@ class BPlusTree {
   KeyComparator comparator_;
   int leaf_max_size_;
   int internal_max_size_;
+  std::shared_mutex root_latch_;
+  std::mutex root_guard_;
+  int count = 0;
 };
 
 }  // namespace bustub
