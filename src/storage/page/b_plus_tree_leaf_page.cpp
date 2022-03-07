@@ -53,26 +53,26 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::SetNextPageId(page_id_t next_page_id) { next_pa
 INDEX_TEMPLATE_ARGUMENTS
 int B_PLUS_TREE_LEAF_PAGE_TYPE::KeyIndex(const KeyType &key, const KeyComparator &comparator) const {
   // use binary search
-  for (int i = 0, size = GetSize(); i < size; ++i) {
-    if (comparator(key, array[i].first) <= 0) {
-      return i;
+//  for (int i = 0, size = GetSize(); i < size; ++i) {
+//    if (comparator(key, array[i].first) <= 0) {
+//      return i;
+//    }
+//  }
+//  return GetSize();
+    int left = 0;
+    int right = GetSize();
+    int mid;
+    while(left<right)
+    {
+      mid=left+(right-left)/2;
+      if(comparator(array[mid].first,key)>=0){
+        right=mid;//if eq there might another eq
+      }
+      else{
+        left=mid+1;//if less,move to right
+      }
     }
-  }
-  return GetSize();
-  //  int left = 0;
-  //  int right = GetSize();
-  //  int mid;
-  //  while(left<right)
-  //  {
-  //    mid=left+(right-left)/2;
-  //    if(comparator(array[mid].first,key)>=0){
-  //      right=mid;//if eq there might another eq
-  //    }
-  //    else{
-  //      left=mid+1;//if less,move to right
-  //    }
-  //  }
-  //  return left;
+    return left;
 }
 
 /*
@@ -150,15 +150,22 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::CopyNFrom(MappingType *items, int size) {
 INDEX_TEMPLATE_ARGUMENTS
 bool B_PLUS_TREE_LEAF_PAGE_TYPE::Lookup(const KeyType &key, ValueType *value, const KeyComparator &comparator) const {
   //  binary_search
-  for (int i = 0, size = GetSize(); i < size; ++i) {
-    switch (comparator(key, array[i].first)) {
-      case -1:
-        return false;
-      case 0:
-        *value = array[i].second;
-        return true;
-      case 1:
-        break;
+  int left = 0;
+  int right = GetSize() - 1;
+  int mid;
+  int cmp;
+  while (left <= right) {
+    mid = (left + right) / 2;
+    cmp = comparator(key, array[mid].first);
+    if (cmp == 0) {
+      *value = array[mid].second;
+      return true;
+    }
+    if (cmp > 0) {
+      left = mid + 1;
+    }
+    if (cmp < 0) {
+      right = mid - 1;
     }
   }
   return false;
