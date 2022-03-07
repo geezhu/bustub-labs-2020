@@ -76,14 +76,20 @@ bool BPLUSTREE_TYPE::GetValue(const KeyType &key, std::vector<ValueType> *result
 INDEX_TEMPLATE_ARGUMENTS
 bool BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transaction *transaction) {
   assert(transaction->GetPageSet()->empty());
-  {
-    unique_lock<shared_mutex> root_writelock(root_latch_);
-    if (root_page_id_ == INVALID_PAGE_ID) {
-      StartNewTree(key, value);
-      return true;
+  while (true) {
+    try {
+      {
+        unique_lock<shared_mutex> root_writelock(root_latch_);
+        if (root_page_id_ == INVALID_PAGE_ID) {
+          StartNewTree(key, value);
+          return true;
+        }
+      }
+      return InsertIntoLeaf(key, value, transaction);
+    } catch (std::logic_error &E) {
+      LOG_DEBUG("%s,redo insert %ld", E.what(), key.ToString());
     }
   }
-  return InsertIntoLeaf(key, value, transaction);
 }
 /*
  * Insert constant key & value pair into an empty tree
@@ -95,6 +101,9 @@ INDEX_TEMPLATE_ARGUMENTS
 void BPLUSTREE_TYPE::StartNewTree(const KeyType &key, const ValueType &value) {
   assert(root_page_id_ == INVALID_PAGE_ID);
   page_ptr<LeafPage> new_root_page = make_newpage<LeafPage>(buffer_pool_manager_);
+  if (new_root_page.is_null()) {
+    throw Exception(ExceptionType::OUT_OF_MEMORY, "StartNew tree");
+  }
   new_root_page.mark_dirty(true);
   assert(!new_root_page.is_null());
   root_page_id_ = new_root_page.GetPageId();
@@ -117,6 +126,9 @@ void BPLUSTREE_TYPE::StartNewTree(const KeyType &key, const ValueType &value) {
 INDEX_TEMPLATE_ARGUMENTS
 bool BPLUSTREE_TYPE::InsertIntoLeaf(const KeyType &key, const ValueType &value, Transaction *transaction) {
   page_ptr<LeafPage> leaf = FindLeafPage(key, INSERT, transaction);
+  if (leaf.is_null()) {
+    throw std::logic_error("Leaf Is Removed");
+  }
   KeyType old_key = leaf->KeyAt(0);
   bool HoldingRoot = HoldingRootPage(leaf.cast(), transaction);
   assert(!leaf.is_null());
@@ -369,6 +381,11 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
   }
   // fetch page
   page_ptr<LeafPage> leaf = FindLeafPage(key, DELETE, transaction);
+  if (leaf.is_null()) {
+    // concurrent remove keys might make empty pageset
+    LOG_DEBUG("Leaf Is Removed");
+    return;
+  }
   leaf->RemoveAndDeleteRecord(key, comparator_);
   //  LOG_DEBUG("after remove %d",size);
   leaf.mark_dirty(true);
@@ -682,25 +699,11 @@ Page *BPLUSTREE_TYPE::FindLeafPageImpl(const KeyType &key, const BPlusTreeOperat
   root_guard_.lock();
   //  LOG_DEBUG("txn %d get guard",transaction->GetTransactionId());
   unique_lock<shared_mutex> root_writelock(root_latch_);
-  //  LOG_DEBUG("txn %d get root latch",transaction->GetTransactionId());
-  //  LOG_DEBUG("txn %d key = %ld get root latch",transaction->GetTransactionId(),key.ToString());
-  //  if (type==INSERT){
-  //    LOG_DEBUG("INSERT");
-  //  }
-  //  if (type==SEARCH){
-  //    LOG_DEBUG("SEARCH");
-  //  }
-  //  if (type==DELETE){
-  //    LOG_DEBUG("DELETE");
-  //  }
   if (IsEmpty()) {
     root_guard_.unlock();
     //    LOG_DEBUG("txn %d unlock guard",transaction->GetTransactionId());
     return nullptr;
   }
-  //  std::string filename = std::string("tmp") + std::to_string(count) + std::string(".dot");
-  //  count++;
-  //  Draw(buffer_pool_manager_, filename);
 
   page_id_t child_page_id = root_page_id_;
   page_id_t safe_page_id = INVALID_PAGE_ID;
@@ -762,7 +765,6 @@ Page *BPLUSTREE_TYPE::FindLeafPageImpl(const KeyType &key, const BPlusTreeOperat
     //    LOG_DEBUG("txn %d unlock guard",transaction->GetTransactionId());
     return Page.force_move_page_out();
   }
-
   if (safe_page_id != root_page_id_) {
     root_guard_.unlock();
     //    LOG_DEBUG("txn %d unlock guard",transaction->GetTransactionId());
@@ -1038,6 +1040,9 @@ page_ptr<LEAF_PAGE> BPLUSTREE_TYPE::FindLeafPage(const KeyType &key, BPlusTreeOp
     return page_ptr<LeafPage>(buffer_pool_manager_, FindLeafPageImpl(key, NONE, nullptr, leftMost), false);
   }
   FindLeafPageImpl(key, type, transaction, leftMost);
+  if (transaction->GetPageSet()->empty()) {
+    return page_ptr<LeafPage>(nullptr, nullptr, false);
+  }
   return FetchPage<LeafPage>(transaction, INVALID_PAGE_ID, type);
 }
 
