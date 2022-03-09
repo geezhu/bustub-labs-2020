@@ -124,21 +124,21 @@ ValueType B_PLUS_TREE_INTERNAL_PAGE_TYPE::Lookup(const KeyType &key, const KeyCo
     throw Exception("fail!");
   };
   return array[binary_search()].second;
-//    int left = 1;
-//    int right = GetSize();
-//    int mid;
-//    while(left<right)
-//    {
-//      mid=left+(right-left)/2;
-//      if(comparator(array[mid].first,key)>=0)
-//        right=mid;//如果相等的话，前面可能还会有所以往前，大于也要往前
-//      else
-//        left=mid+1;//小于说明要往后
-//    }
-//    if (comparator(array[left].first,key)!=0){
-//      left--;
-//    }
-//    return array[left].second;
+  //    int left = 1;
+  //    int right = GetSize();
+  //    int mid;
+  //    while(left<right)
+  //    {
+  //      mid=left+(right-left)/2;
+  //      if(comparator(array[mid].first,key)>=0)
+  //        right=mid;//如果相等的话，前面可能还会有所以往前，大于也要往前
+  //      else
+  //        left=mid+1;//小于说明要往后
+  //    }
+  //    if (comparator(array[left].first,key)!=0){
+  //      left--;
+  //    }
+  //    return array[left].second;
 }
 
 /*****************************************************************************

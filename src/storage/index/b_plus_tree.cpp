@@ -15,8 +15,8 @@
 #include "common/rid.h"
 #include "storage/index/b_plus_tree.h"
 #include "storage/page/header_page.h"
-// #define OLD_LOCK
-#define NEW_LOCK
+#define OLD_LOCK
+// #define NEW_LOCK
 namespace bustub {
 using std::mutex;
 using std::shared_lock;
@@ -130,7 +130,9 @@ bool BPLUSTREE_TYPE::InsertIntoLeaf(const KeyType &key, const ValueType &value, 
     throw std::logic_error("Leaf Is Removed");
   }
   KeyType old_key = leaf->KeyAt(0);
+#ifdef NEW_LOCK
   bool HoldingRoot = HoldingRootPage(leaf.cast(), transaction);
+#endif
   assert(!leaf.is_null());
   int index = leaf->KeyIndex(key, comparator_);
   if (index < leaf->GetSize() && comparator_(key, leaf->GetItem(index).first) == 0) {
@@ -138,7 +140,7 @@ bool BPLUSTREE_TYPE::InsertIntoLeaf(const KeyType &key, const ValueType &value, 
 #ifdef OLD_LOCK
     if (leaf->IsRootPage()) {
       root_guard_.unlock();
-      LOG_DEBUG("txn %d unlock guard", transaction->GetTransactionId());
+      //      LOG_DEBUG("txn %d unlock guard", transaction->GetTransactionId());
     }
 #endif
 #ifdef NEW_LOCK
@@ -185,7 +187,7 @@ bool BPLUSTREE_TYPE::InsertIntoLeaf(const KeyType &key, const ValueType &value, 
       SetKeyOfChild(new_root_page, leaf);
 #ifdef OLD_LOCK
       root_guard_.unlock();
-      LOG_DEBUG("txn %d unlock guard", transaction->GetTransactionId());
+//      LOG_DEBUG("txn %d unlock guard", transaction->GetTransactionId());
 #endif
       //      new_root_page->SetKeyAt(0,leaf->KeyAt(0));
     } else {
@@ -208,7 +210,7 @@ bool BPLUSTREE_TYPE::InsertIntoLeaf(const KeyType &key, const ValueType &value, 
 //    LOG_DEBUG("leaf root unlock");
 #ifdef OLD_LOCK
     root_guard_.unlock();
-    LOG_DEBUG("txn %d unlock guard", transaction->GetTransactionId());
+//    LOG_DEBUG("txn %d unlock guard", transaction->GetTransactionId());
 #endif
   }
   assert(transaction->GetPageSet()->empty());
@@ -318,7 +320,7 @@ void BPLUSTREE_TYPE::InsertIntoParent(BPlusTreePage *old_node, const KeyType &ke
       SetKeyOfChild(new_root_page, old_internal);
 #ifdef OLD_LOCK
       root_guard_.unlock();
-      LOG_DEBUG("txn %d unlock guard", transaction->GetTransactionId());
+//      LOG_DEBUG("txn %d unlock guard", transaction->GetTransactionId());
 #endif
       //      new_root_page->SetKeyAt(0,old_internal->KeyAt(0));
     } else {
@@ -356,7 +358,7 @@ void BPLUSTREE_TYPE::InsertIntoParent(BPlusTreePage *old_node, const KeyType &ke
 #ifdef OLD_LOCK
   if (old_internal->IsRootPage()) {
     root_guard_.unlock();
-    LOG_DEBUG("txn %d unlock guard", transaction->GetTransactionId());
+    //    LOG_DEBUG("txn %d unlock guard", transaction->GetTransactionId());
   }
 #endif
 }
@@ -402,7 +404,7 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
 #ifdef OLD_LOCK
   if (leaf_is_root) {
     root_guard_.unlock();
-    LOG_DEBUG("txn %d unlock guard", transaction->GetTransactionId());
+    //    LOG_DEBUG("txn %d unlock guard", transaction->GetTransactionId());
   }
 #endif
 #ifdef NEW_LOCK
@@ -449,7 +451,7 @@ bool BPLUSTREE_TYPE::CoalesceOrRedistribute(N *node, Transaction *transaction) {
 #ifdef OLD_LOCK
     if (parent_internal->IsRootPage()) {
       root_guard_.unlock();
-      LOG_DEBUG("txn %d unlock guard", transaction->GetTransactionId());
+      //      LOG_DEBUG("txn %d unlock guard", transaction->GetTransactionId());
     }
 #endif
     return false;
@@ -495,7 +497,7 @@ bool BPLUSTREE_TYPE::CoalesceOrRedistribute(N *node, Transaction *transaction) {
 #ifdef OLD_LOCK
     if (parent_internal->IsRootPage()) {
       root_guard_.unlock();
-      LOG_DEBUG("txn %d unlock guard", transaction->GetTransactionId());
+      //      LOG_DEBUG("txn %d unlock guard", transaction->GetTransactionId());
     }
 #endif
     return false;
@@ -511,7 +513,7 @@ bool BPLUSTREE_TYPE::CoalesceOrRedistribute(N *node, Transaction *transaction) {
 #ifdef OLD_LOCK
   if (parent_internal->IsRootPage()) {
     root_guard_.unlock();
-    LOG_DEBUG("txn %d unlock guard", transaction->GetTransactionId());
+    //    LOG_DEBUG("txn %d unlock guard", transaction->GetTransactionId());
   }
 #endif
   return index < 0;
@@ -698,7 +700,7 @@ Page *BPLUSTREE_TYPE::FindLeafPageImpl(const KeyType &key, const BPlusTreeOperat
   assert((type == NONE && transaction == nullptr) || (type != NONE && transaction != nullptr));
   root_guard_.lock();
   //  LOG_DEBUG("txn %d get guard",transaction->GetTransactionId());
-  unique_lock<shared_mutex> root_writelock(root_latch_);
+  shared_lock<shared_mutex> root_readlock(root_latch_);
   if (IsEmpty()) {
     root_guard_.unlock();
     //    LOG_DEBUG("txn %d unlock guard",transaction->GetTransactionId());
@@ -1014,7 +1016,7 @@ void BPLUSTREE_TYPE::ClearPage(Transaction *transaction, BPlusTreeOperation type
 #ifdef OLD_LOCK
   if (!transaction->GetPageSet()->empty() && transaction->GetPageSet()->front()->GetPageId() == root_page_id_) {
     root_guard_.unlock();
-    LOG_DEBUG("txn %d unlock guard", transaction->GetTransactionId());
+    //    LOG_DEBUG("txn %d unlock guard", transaction->GetTransactionId());
   }
 #endif
   while (!transaction->GetPageSet()->empty() && !FetchPage<Page>(transaction, INVALID_PAGE_ID, type).is_null()) {

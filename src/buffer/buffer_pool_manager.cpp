@@ -16,7 +16,6 @@
 #include <unordered_map>
 
 namespace bustub {
-#define map(page_id) ((page_id) % NBUCKET)
 using unique_lock = std::unique_lock<std::mutex>;
 BufferPoolManager::BufferPoolManager(size_t pool_size, DiskManager *disk_manager, LogManager *log_manager)
     : pool_size_(pool_size), disk_manager_(disk_manager), log_manager_(log_manager) {
