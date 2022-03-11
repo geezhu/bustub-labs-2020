@@ -38,11 +38,29 @@ class ExecutionEngine {
     executor->Init();
 
     // execute
+    auto HasReturnType = [](PlanType TypeId) -> bool {
+      switch (TypeId) {
+        case PlanType::Insert:
+        case PlanType::Update:
+        case PlanType::Delete:
+          return false;
+        case PlanType::SeqScan:
+        case PlanType::IndexScan:
+        case PlanType::Aggregation:
+        case PlanType::Limit:
+        case PlanType::NestedLoopJoin:
+        case PlanType::NestedIndexJoin:
+          return true;
+        default:
+          throw NotImplementedException("Unknown Plan Type");
+      }
+      return false;
+    };
     try {
       Tuple tuple;
       RID rid;
       while (executor->Next(&tuple, &rid)) {
-        if (result_set != nullptr) {
+        if (result_set != nullptr && HasReturnType(plan->GetType())) {
           result_set->push_back(tuple);
         }
       }
