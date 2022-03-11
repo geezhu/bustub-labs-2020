@@ -13,6 +13,7 @@
  * For range scan of b+ tree
  */
 #pragma once
+#include <utility>
 #include "storage/page/b_plus_tree_leaf_page.h"
 
 namespace bustub {
@@ -34,7 +35,12 @@ class IndexIterator {
   const MappingType &operator*();
 
   IndexIterator &operator++();
-
+  IndexIterator &operator=(IndexIterator &&rhs) noexcept {
+    this->leaf_ = std::move(rhs.leaf_);
+    index_ = rhs.index_;
+    bpm_ = rhs.bpm_;
+    return *this;
+  }
   bool operator==(const IndexIterator &itr) const {
     if (leaf_.is_null() || itr.leaf_.is_null()) {
       return leaf_.is_null() == itr.leaf_.is_null();
