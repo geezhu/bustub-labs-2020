@@ -13,10 +13,37 @@
 
 namespace bustub {
 
-SeqScanExecutor::SeqScanExecutor(ExecutorContext *exec_ctx, const SeqScanPlanNode *plan) : AbstractExecutor(exec_ctx) {}
+SeqScanExecutor::SeqScanExecutor(ExecutorContext *exec_ctx, const SeqScanPlanNode *plan)
+    : AbstractExecutor(exec_ctx),
+      plan_(plan),
+      table_info_(exec_ctx_->GetCatalog()->GetTable(plan_->GetTableOid())),
+      iterator_(table_info_->table_->Begin(exec_ctx_->GetTransaction())) {}
 
-void SeqScanExecutor::Init() {}
+void SeqScanExecutor::Init() { iterator_ = table_info_->table_->Begin(exec_ctx_->GetTransaction()); }
 
-bool SeqScanExecutor::Next(Tuple *tuple, RID *rid) { return false; }
+bool SeqScanExecutor::Next(Tuple *tuple, RID *rid) {
+  auto make_tuple = [](const Tuple *tuple, const Schema *out_schema, const Schema &tuple_schema) -> Tuple {
+    std::vector<Value> values;
+    for (auto &column : out_schema->GetColumns()) {
+      values.emplace_back(column.GetExpr()->Evaluate(tuple, &tuple_schema));
+    }
+    return Tuple(values, out_schema);
+  };
+  while (iterator_ != table_info_->table_->End()) {
+    if (plan_->GetPredicate() == nullptr ||
+        plan_->GetPredicate()->Evaluate(&*iterator_, &table_info_->schema_).GetAs<bool>()) {
+      *rid = iterator_->GetRid();
+      auto txn = exec_ctx_->GetTransaction();
+      iterator_++;
+      if (!table_info_->table_->GetTuple(*rid, tuple, txn)) {
+        return false;
+      }
+      *tuple = make_tuple(tuple, plan_->OutputSchema(), table_info_->schema_);
+      return true;
+    }
+    iterator_++;
+  }
+  return false;
+}
 
 }  // namespace bustub
