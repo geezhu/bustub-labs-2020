@@ -29,15 +29,32 @@ bool SeqScanExecutor::Next(Tuple *tuple, RID *rid) {
     }
     return Tuple(values, out_schema);
   };
+  auto txn = exec_ctx_->GetTransaction();
+  auto lock_manager = exec_ctx_->GetLockManager();
+  auto IsoLevel = txn->GetIsolationLevel();
   while (iterator_ != table_info_->table_->End()) {
     if (plan_->GetPredicate() == nullptr ||
         plan_->GetPredicate()->Evaluate(&*iterator_, &table_info_->schema_).GetAs<bool>()) {
       *rid = iterator_->GetRid();
-      auto txn = exec_ctx_->GetTransaction();
-      iterator_++;
-      if (!table_info_->table_->GetTuple(*rid, tuple, txn)) {
-        return false;
+      *tuple = *iterator_;
+      if (!txn->IsExclusiveLocked(*rid) && !txn->IsSharedLocked(*rid)) {
+        if (IsoLevel != IsolationLevel::READ_UNCOMMITTED) {
+          lock_manager->LockShared(txn, *rid);
+          if (!table_info_->table_->GetTuple(*rid, tuple, txn)) {
+            // tuple might be removed
+            iterator_++;
+            if (IsoLevel == IsolationLevel::READ_COMMITTED) {
+              lock_manager->Unlock(txn, *rid);
+            }
+            // unable to unlock repeatable_read
+            continue;
+          }
+        }
+        if (IsoLevel == IsolationLevel::READ_COMMITTED) {
+          lock_manager->Unlock(txn, *rid);
+        }
       }
+      iterator_++;
       *tuple = make_tuple(tuple, plan_->OutputSchema(), table_info_->schema_);
       return true;
     }

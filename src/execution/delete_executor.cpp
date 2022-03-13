@@ -27,17 +27,35 @@ void DeleteExecutor::Init() { child_executor_->Init(); }
 bool DeleteExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) {
   Tuple tmp_tuple;
   if (child_executor_->Next(&tmp_tuple, rid)) {
+    auto txn = exec_ctx_->GetTransaction();
+    auto catalog = exec_ctx_->GetCatalog();
+    auto lock_manager = exec_ctx_->GetLockManager();
+    auto IsoLevel = txn->GetIsolationLevel();
+    auto table_oid = table_info_->oid_;
+    if (txn->IsSharedLocked(*rid)) {
+      lock_manager->LockUpgrade(txn, *rid);
+    } else if (!txn->IsExclusiveLocked(*rid)) {
+      lock_manager->LockExclusive(txn, *rid);
+    }
     // delete from table
-    if (table_info_->table_->MarkDelete(*rid, exec_ctx_->GetTransaction())) {
+    if (table_info_->table_->MarkDelete(*rid, txn)) {
       // delete from all index
-      std::vector<IndexInfo *> index_set = exec_ctx_->GetCatalog()->GetTableIndexes(table_info_->name_);
+      auto &child_schema = *child_executor_->GetOutputSchema();
+      std::vector<IndexInfo *> index_set = catalog->GetTableIndexes(table_info_->name_);
       for (auto &index_info : index_set) {
         std::unique_ptr<Index> &index = index_info->index_;
-        index->DeleteEntry(
-            tmp_tuple.KeyFromTuple(*child_executor_->GetOutputSchema(), *index->GetKeySchema(), index->GetKeyAttrs()),
-            *rid, exec_ctx_->GetTransaction());
+        index->DeleteEntry(tmp_tuple.KeyFromTuple(child_schema, *index->GetKeySchema(), index->GetKeyAttrs()), *rid,
+                           txn);
+        txn->GetIndexWriteSet()->emplace_back(*rid, table_oid, WType::DELETE, tmp_tuple, index_info->index_oid_,
+                                              catalog);
+      }
+      if (IsoLevel == IsolationLevel::READ_UNCOMMITTED) {
+        lock_manager->Unlock(txn, *rid);
       }
       return true;
+    }
+    if (IsoLevel == IsolationLevel::READ_UNCOMMITTED) {
+      lock_manager->Unlock(txn, *rid);
     }
     // no more tuple after abort
     return false;

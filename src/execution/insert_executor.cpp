@@ -40,11 +40,24 @@ bool InsertExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) {
   };
   auto insert_into_table_and_index = [this, &make_key_tuple](Tuple &tuple, RID *rid) -> bool {
     auto txn = exec_ctx_->GetTransaction();
-    if (table_info_->table_->InsertTuple(tuple, rid, exec_ctx_->GetTransaction())) {
-      auto index_set = exec_ctx_->GetCatalog()->GetTableIndexes(table_info_->name_);
+    auto catalog = exec_ctx_->GetCatalog();
+    auto lock_manager = exec_ctx_->GetLockManager();
+    auto IsoLevel = txn->GetIsolationLevel();
+    if (table_info_->table_->InsertTuple(tuple, rid, txn)) {
+      auto index_set = catalog->GetTableIndexes(table_info_->name_);
+      if (txn->IsSharedLocked(*rid)) {
+        lock_manager->LockUpgrade(txn, *rid);
+      } else if (!txn->IsExclusiveLocked(*rid)) {
+        lock_manager->LockExclusive(txn, *rid);
+      }
       for (auto &index_info : index_set) {
         std::unique_ptr<Index> &index = index_info->index_;
         index->InsertEntry(make_key_tuple(tuple, index), *rid, txn);
+        txn->GetIndexWriteSet()->emplace_back(*rid, table_info_->oid_, WType::INSERT, tuple, index_info->index_oid_,
+                                              catalog);
+      }
+      if (IsoLevel == IsolationLevel::READ_UNCOMMITTED) {
+        lock_manager->Unlock(txn, *rid);
       }
       return true;
     }
