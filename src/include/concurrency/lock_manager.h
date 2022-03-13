@@ -33,7 +33,20 @@ class TransactionManager;
  */
 class LockManager {
   enum class LockMode { SHARED, EXCLUSIVE };
-
+  static constexpr LockManager::LockMode EXCLUSIVE = LockMode::EXCLUSIVE;
+  static constexpr LockManager::LockMode SHARED = LockMode::SHARED;
+  static constexpr IsolationLevel READ_UNCOMMITTED = IsolationLevel::READ_UNCOMMITTED;
+  static constexpr IsolationLevel READ_COMMITTED = IsolationLevel::READ_COMMITTED;
+  static constexpr IsolationLevel REPEATABLE_READ = IsolationLevel::REPEATABLE_READ;
+  static constexpr AbortReason UNLOCK_ON_SHRINKING = AbortReason::UNLOCK_ON_SHRINKING;
+  static constexpr AbortReason DEADLOCK = AbortReason::DEADLOCK;
+  static constexpr AbortReason UPGRADE_CONFLICT = AbortReason::UPGRADE_CONFLICT;
+  static constexpr AbortReason LOCK_ON_SHRINKING = AbortReason::LOCK_ON_SHRINKING;
+  static constexpr AbortReason LOCKSHARED_ON_READ_UNCOMMITTED = AbortReason::LOCKSHARED_ON_READ_UNCOMMITTED;
+  static constexpr TransactionState GROWING = TransactionState::GROWING;
+  static constexpr TransactionState SHRINKING = TransactionState::SHRINKING;
+  static constexpr TransactionState COMMITTED = TransactionState::COMMITTED;
+  static constexpr TransactionState ABORTED = TransactionState::ABORTED;
   class LockRequest {
    public:
     LockRequest(txn_id_t txn_id, LockMode lock_mode) : txn_id_(txn_id), lock_mode_(lock_mode), granted_(false) {}
@@ -132,6 +145,10 @@ class LockManager {
   void RunCycleDetection();
 
  private:
+  bool shared_predicate(Transaction *txn, const RID &rid);
+  bool unique_predicate(Transaction *txn, const RID &rid);
+  bool EraseLockRequest(txn_id_t txnId, const RID &rid, bool acquire_granted);
+  bool UnlockWithoutLatch(Transaction *txn, const RID &rid);
   std::mutex latch_;
   std::atomic<bool> enable_cycle_detection_;
   std::thread *cycle_detection_thread_;
@@ -140,6 +157,7 @@ class LockManager {
   std::unordered_map<RID, LockRequestQueue> lock_table_;
   /** Waits-for graph representation. */
   std::unordered_map<txn_id_t, std::vector<txn_id_t>> waits_for_;
+  std::unordered_map<txn_id_t, std::vector<txn_id_t>> reverse_wait_for_;
 };
 
 }  // namespace bustub
